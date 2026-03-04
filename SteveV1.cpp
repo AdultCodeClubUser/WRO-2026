@@ -1,0 +1,269 @@
+//Steve v1.0
+
+#include <AccelStepper.h>
+
+//runs well , still does the weird serial squares and motor un on upload.
+
+//defines pins numbers
+AccelStepper lMotor(1, 3, 2 ); //left (driverboard,step,dir)
+const int Lms1 = 33;
+const int Lms2 = 35;
+const int Lms3 = 37;
+
+AccelStepper rMotor(1,11,10); //right
+const int Rms1 = 32;
+const int Rms2 = 34;
+const int Rms3 = 36;
+
+const int grid_Motor = 7;
+const int buttonPin = 28;
+
+int DBG = 1; //1=on
+String msg="";
+unsigned long lastPrintTime = 0;
+
+int currentTask = 0;
+bool run = false ; 
+bool lastButtonState = LOW;
+
+int i = 1 ;
+
+
+int frequency = 0;
+const int black_value = 100;
+#define S0 23  // light sensor, TCS3200
+#define S1 25
+#define S2 24
+#define S3 26
+#define out 22
+
+const float TRACK_WIDTH = 1000.0 ; //mm, distance from the center of the wheels
+const float WHEEL_DIAMETER = 88.0; // mm
+const float WHEEL_CIRCUMFERENCE = 3.14159 * WHEEL_DIAMETER; // ~276.46 mm
+int STEPS_PER_REV = 200;
+const float STEPS_FOR_90_TURN = WHEEL_DIAMETER * STEPS_PER_REV / 4.0 / TRACK_WIDTH;
+
+void dbug(String msg) {
+  
+  if ((millis() - lastPrintTime >= 50) && (DBG == 1)) {
+    lastPrintTime = millis();  
+    Serial.println(msg);
+
+  }
+ 
+}
+
+long l_dl(){
+  return lMotor.distanceToGo();
+
+}
+
+long r_dl(){
+  return rMotor.distanceToGo();
+
+}
+
+void StepMode(int stepMode){
+  if(stepMode == 1){//both motors fullsteps
+    STEPS_PER_REV = 200;
+    digitalWrite(Rms1, LOW);
+    digitalWrite(Rms2, LOW);
+    digitalWrite(Rms3, LOW);
+    digitalWrite(Lms1, LOW);
+    digitalWrite(Lms2, LOW);
+    digitalWrite(Lms3, LOW);
+  }
+  if(stepMode == 2){// Both motors half steps
+    STEPS_PER_REV = 400;
+    digitalWrite(Rms1, HIGH);
+    digitalWrite(Rms2, LOW);
+    digitalWrite(Rms3, LOW);
+    digitalWrite(Lms1, HIGH);
+    digitalWrite(Lms2, LOW);
+    digitalWrite(Lms3, LOW);
+  }
+  if(stepMode == 3){ //both motors eigth steps
+    STEPS_PER_REV = 800;
+    digitalWrite(Rms1, HIGH);
+    digitalWrite(Rms2, HIGH);
+    digitalWrite(Rms3, LOW);
+    digitalWrite(Lms1, HIGH);
+    digitalWrite(Lms2, HIGH);
+    digitalWrite(Lms3, LOW);
+  }
+   if(stepMode == 4){ //both motors sixteenth steps
+    STEPS_PER_REV = 1600;
+    digitalWrite(Rms1, HIGH);
+    digitalWrite(Rms2, HIGH);
+    digitalWrite(Rms3, HIGH);
+    digitalWrite(Lms1, HIGH);
+    digitalWrite(Lms2, HIGH);
+    digitalWrite(Lms3, HIGH);
+  }
+}
+
+
+// Calculate steps for movements
+int stepsForDistance(float distance_mm) {
+  return (int)((distance_mm / (WHEEL_CIRCUMFERENCE)) * STEPS_PER_REV);
+}
+
+
+/*String dbg(msg){
+
+  if ((millis() - lastPrintTime >= 50) && (DBG == 1)) {
+    lastPrintTime = millis();  
+    Serial.println(msg);
+
+  }
+}
+
+*/
+
+
+void detect_black_line(){
+
+  digitalWrite(S2,HIGH); //clear, no filter
+  digitalWrite(S3,LOW);
+  digitalWrite(S0,HIGH); // Frequency scaling to 20%
+  digitalWrite(S1,LOW);
+
+  Serial.print("Freq: ");
+  Serial.println(frequency);
+  
+  frequency = pulseIn(out, LOW);
+  
+  if(frequency > black_value){
+    Serial.println("Black Line Detected");
+    // Add motor control code here
+  } else {
+    Serial.println("White Surface");
+  }
+  
+
+}
+
+
+void targetDistance(float distance, int speed){
+  int steps = stepsForDistance(distance);
+
+  
+  rMotor.moveTo(steps);
+  lMotor.moveTo(-steps);        
+  lMotor.setSpeed(speed);
+  rMotor.setSpeed(speed);//steps per second
+  
+
+}
+ 
+void Lower_grid (){
+  digitalWrite(grid_Motor, HIGH);
+  delay(100);
+  digitalWrite(grid_Motor, LOW);
+}
+
+void Raise_grid (){
+  digitalWrite(grid_Motor, HIGH); 
+  delay(100);
+  digitalWrite(grid_Motor, LOW);
+} 
+
+void setup() {
+ Serial.begin(115200);
+ lMotor.setMaxSpeed(1000); //r per min
+ rMotor.setMaxSpeed(1000);
+
+ lMotor.setAcceleration(800);
+ rMotor.setAcceleration(800);
+  pinMode(Lms1, OUTPUT);
+  pinMode(Lms2, OUTPUT);
+  pinMode(Lms3, OUTPUT);
+  pinMode(Rms1, OUTPUT);
+  pinMode(Rms2, OUTPUT);
+  pinMode(Rms3, OUTPUT);
+
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(out, INPUT);
+
+  dbug("setup"); 
+
+  pinMode(buttonPin, INPUT);
+  //lMotor.setCurrentPosition(0);
+  //rMotor.setCurrentPosition(0);
+
+  targetDistance(1, 100);
+  //rMotor.run();
+  //lMotor.run();
+  delay(1000);
+  currentTask = 1;
+}
+
+
+void loop() {
+ bool currentButtonState = digitalRead(buttonPin);
+
+ if (currentButtonState == HIGH && lastButtonState == LOW) {
+    dbug(String(currentButtonState));
+    run = !run;
+    delay(500);
+  }
+  
+  lastButtonState = currentButtonState;
+  
+  if (run){
+    
+    switch (currentTask){
+      case 1:
+        dbug("case 1");
+        StepMode(1);
+        
+        lMotor.setCurrentPosition(0);
+        rMotor.setCurrentPosition(0);
+
+        targetDistance(400, 500);
+        
+        dbug("start");   
+        
+        //while ((l_dl() != 0) || (r_dl() != 0)){ //uncomment
+        while ( (r_dl() != 0)){  
+
+          //if (l_dl()>0)lMotor.run();//uncomment
+          if (r_dl()>0)rMotor.run(); //del
+          
+          
+          String str1="!";
+          str1= String(r_dl());
+          dbug(str1);
+
+        }
+        
+        currentTask=2;      
+      case 2:
+        dbug("case 2");
+        //Serial.println(l_dl());
+        break;
+        
+        /*if (l_dl() == 0 && r_dl() == 0 ){
+          Serial.println("205");
+        }
+        */
+        
+   
+    }
+
+  }else{
+    //whatever needs to stop
+    lMotor.stop();
+    rMotor.stop();
+  }
+  
+
+}
+
+
+
+
+
